@@ -38,7 +38,7 @@
 #define M_PI  3.14159265358979323846
 #define VMAX_MOTEUR 251
 #define VMAX_USER 200
-#define PWM_USER_MAX 0.5
+#define PWM_USER_MAX 1
 #define TIM3_COUNTER_PERIOD 999
 #define PPR 5760 // Pulse per rotation for motor encoder
 #define TIRE_RADIUS 29 //mm
@@ -62,6 +62,8 @@ UART_HandleTypeDef huart2;
 /* USER CODE BEGIN PV */
 uint8_t first_time;
 int dist1, dist2, dist3;//Déclaré ici comme variable globale pour l'utiliser dans 2 fonctions
+int positionExecution = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -79,6 +81,7 @@ void Rotation(float PWM, float angle, bool direction);
 void StopRobot();
 void update_encoder(encoder_instance *encoder_value, TIM_HandleTypeDef *htim);
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim);
+void ResetEncoder();
 
 
 /* USER CODE END PFP */
@@ -137,16 +140,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  //Rotation(1, 30, 0);
-	  MoveStraight(1, 100, 0);
-	  //Rotation(0.5, 50, 1);
-	  //HAL_Delay(1000);
-	  MoveStraight(1, 100, 90);
-	  //HAL_Delay(1000);
-	  MoveStraight(1, 100, 180);
-	  //HAL_Delay(1000);
-	  MoveStraight(1, 100, 270);
-	  //HAL_Delay(1000);
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -581,7 +575,7 @@ void MoveStraight(float PWM, float distance, float angle)
 
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, dir[0]); // output for DIR motor 1 : D7
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, dir[1]); // output for DIR motor 2 : D8
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, dir[2]); // output for DIR motor 3 : D6 A changer !!!
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, dir[2]); // output for DIR motor 3 : D6
 
 }
 
@@ -597,14 +591,11 @@ void Rotation(float PWM, float angle, bool direction)
 
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, direction); // output for DIR motor 1 : D7
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, direction); // output for DIR motor 2 : D8
-	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, direction); // output for DIR motor 3 : PB2
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, direction); // output for DIR motor 3 :D6
+
 	dist1 = ROBOT_RADIUS*angle*M_PI/180; // dist = distance parcourue par une roue
 	dist2 = dist1;
 	dist3 = dist1;
-
-	__HAL_TIM_SET_COUNTER(&htim4, 0);
-	__HAL_TIM_SET_COUNTER(&htim8, 0);
-	__HAL_TIM_SET_COUNTER(&htim2, 0);
 
 }
 
@@ -617,6 +608,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)//fonction intervient
 	update_encoder(&encoder_value1, &htim4);
 	update_encoder(&encoder_value2, &htim8);
 	update_encoder(&encoder_value3, &htim2);
+
 	int position1 = encoder_value1.position;
 	//int velocity1 = encoder_value1.velocity;
 	int position2 = encoder_value2.position;
@@ -627,8 +619,99 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)//fonction intervient
 	x1 = TIRE_RADIUS*2*M_PI*position1/PPR/2;
 	x2 = TIRE_RADIUS*2*M_PI*position2/PPR/2;
 	x3 = TIRE_RADIUS*2*M_PI*position3/PPR/2;
-	if(fabs(x1) > fabs(dist1) || fabs(x2) > fabs(dist2) || fabs(x3) > fabs(dist3)) //pas sûr de la condition
-		StopRobot();
+
+	if((fabs(x1) >= fabs(dist1) && fabs(x2) >= fabs(dist2) && fabs(x3) >= fabs(dist3)) || positionExecution==0) //pas sûr de la condition
+	{
+		positionExecution += 1;
+		first_time = 0;
+		switch(positionExecution)
+		{
+
+		case 1:
+			//Rotation(1, 30, 0);
+			//Rotation(0.5, 20, 1);
+			MoveStraight(0.3, 100, 0);
+			//HAL_Delay(1000);
+			 	 break;
+
+		case 2:
+			MoveStraight(0.3, 100, 90);
+			//HAL_Delay(1000);
+				 break;
+
+		case 3:
+			MoveStraight(0.3, 100, 180);
+			//HAL_Delay(1000);
+				 break;
+
+		case 4:
+			MoveStraight(0.3, 100, 270);
+			//HAL_Delay(1000);
+				 break;
+
+		case 5:
+			Rotation (0.3, 50,0);
+				break;
+
+		case 6:
+			Rotation (1,50,1);
+				break;
+
+		case 7:
+			//Rotation(1, 30, 0);
+			//Rotation(0.5, 20, 1);
+			MoveStraight(1, 100, 90);
+			//HAL_Delay(1000);
+				break;
+
+		case 8:
+			MoveStraight(1, 100, 0);
+			//HAL_Delay(1000);
+				 break;
+
+		case 9:
+			MoveStraight(1, 100, 270);
+			//HAL_Delay(1000);
+				 break;
+
+		case 10:
+			MoveStraight(1, 100, 180);
+			//HAL_Delay(1000);
+				 break;
+
+		case 11:
+			MoveStraight (1,67,45);
+				break;
+
+		case 12:
+			//Rotation(1, 30, 0);
+			//Rotation(0.5, 20, 1);
+			MoveStraight(1, 100, 45);
+			//HAL_Delay(1000);
+			 	 break;
+
+		case 13:
+			MoveStraight(1, 100, 135);
+			//HAL_Delay(1000);
+				 break;
+
+		case 14:
+			MoveStraight(1, 100, 225);
+			//HAL_Delay(1000);
+				 break;
+
+		case 15:
+			MoveStraight(1, 100, 315);
+			//HAL_Delay(1000);
+				 break;
+
+		case 16:
+			StopRobot();
+			//HAL_Delay(1000);
+				 break;
+
+		}
+	}
 	return;
 }
 
@@ -640,6 +723,15 @@ void StopRobot()
 	first_time = 0; //Pour pouvoir réinitialiser toutes les données des encodeurs
 }
 
+void ResetEncoder()
+{
+	__HAL_TIM_SET_COUNTER(&htim4, 0);
+	__HAL_TIM_SET_COUNTER(&htim8, 0);
+	__HAL_TIM_SET_COUNTER(&htim2, 0);
+	first_time = 0; //Pour pouvoir réinitialiser toutes les données des encodeurs
+
+}
+
 void update_encoder(encoder_instance *encoder_value, TIM_HandleTypeDef *htim)
  {
 	// On a pas besoin de diviser par la période du comtpeur car elle est déjà à 1 sec ??
@@ -649,6 +741,7 @@ void update_encoder(encoder_instance *encoder_value, TIM_HandleTypeDef *htim)
 	{
 	   encoder_value ->velocity = 0;
 	   encoder_value->position = 0;
+	   encoder_value->last_counter_value = 0;
 	   first_time += 1;
 	}
 	else
