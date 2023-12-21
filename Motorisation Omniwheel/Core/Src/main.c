@@ -38,7 +38,7 @@
 #define M_PI  3.14159265358979323846
 #define VMAX_MOTEUR 251
 #define VMAX_USER 200
-#define PWM_USER_MAX 1
+#define PWM_USER_MAX 0.5
 #define TIM3_COUNTER_PERIOD 999
 #define PPR 5760 // Pulse per rotation for motor encoder
 #define TIRE_RADIUS 29 //mm
@@ -61,6 +61,7 @@ UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 uint8_t first_time;
+int dist1, dist2, dist3;//Déclaré ici comme variable globale pour l'utiliser dans 2 fonctions
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -77,6 +78,7 @@ void MoveStraight(float PWM, float distance, float angle);
 void Rotation(float PWM, float angle, bool direction);
 void StopRobot();
 void update_encoder(encoder_instance *encoder_value, TIM_HandleTypeDef *htim);
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim);
 
 
 /* USER CODE END PFP */
@@ -127,7 +129,7 @@ int main(void)
   HAL_TIM_Base_Start(&htim4);
   HAL_TIM_Base_Start(&htim8);
   HAL_TIM_Base_Start(&htim2);
-  HAL_TIM_Base_Start(&htim5);
+  //HAL_TIM_Base_Start(&htim5);
   HAL_TIM_Base_Start_IT(&htim5);
   /* USER CODE END 2 */
 
@@ -375,9 +377,9 @@ static void MX_TIM5_Init(void)
 
   /* USER CODE END TIM5_Init 1 */
   htim5.Instance = TIM5;
-  htim5.Init.Prescaler = 7999;
+  htim5.Init.Prescaler = 799;
   htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim5.Init.Period = 9999;
+  htim5.Init.Period = 999;
   htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim5.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim5) != HAL_OK)
@@ -549,11 +551,6 @@ void MoveStraight(float PWM, float distance, float angle)
 	float PWM_MOTEUR[3];
 	int i;
 	int dir[3];
-	int x1 = 0, x2 = 0, x3 = 0;
-	int dist1, dist2, dist3;
-	encoder_instance encoder_value1;
-	encoder_instance encoder_value2;
-	encoder_instance encoder_value3;
 
 	PWM_MOTEUR[0] = PWM*sin((angle-60)*M_PI/180);
 	PWM_MOTEUR[1] = PWM*sin((angle-180)*M_PI/180);
@@ -586,35 +583,13 @@ void MoveStraight(float PWM, float distance, float angle)
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, dir[1]); // output for DIR motor 2 : D8
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, dir[2]); // output for DIR motor 3 : D6 A changer !!!
 
-	//int counter = __HAL_TIM_GET_COUNTER(&htim4);
-
-	do
-	{
-		update_encoder(&encoder_value1, &htim4);
-		update_encoder(&encoder_value2, &htim8);
-		update_encoder(&encoder_value3, &htim2);
-		int position1 = encoder_value1.position;
-		//int velocity1 = encoder_value1.velocity;
-		int position2 = encoder_value2.position;
-		//int velocity2 = encoder_value2.velocity;
-		int position3 = encoder_value3.position;
-		//int velocity3 = encoder_value3.velocity;
-
-		x1 = TIRE_RADIUS*2*M_PI*position1/PPR/2;
-		x2 = TIRE_RADIUS*2*M_PI*position2/PPR/2;
-		x3 = TIRE_RADIUS*2*M_PI*position3/PPR/2;
-
-	}while(fabs(x1) < fabs(dist1) || fabs(x2) < fabs(dist2) || fabs(x3) < fabs(dist3));
-	StopRobot();
 }
 
 void Rotation(float PWM, float angle, bool direction)
 //direction : 1 si trigo, 0 si horlogique
 //angle en degré
+//La mesure de distance parcourue se fait dans une interruption
 {
-	int dist;
-	int x1 = 0, x2 = 0, x3 = 0;
-	encoder_instance encoder_value1, encoder_value2, encoder_value3;
 
 	TIM3->CCR2 = PWM*PWM_USER_MAX*(TIM3_COUNTER_PERIOD + 1); // output for DIR motor 1 : D7
 	TIM3->CCR1 = PWM*PWM_USER_MAX*(TIM3_COUNTER_PERIOD + 1); // output for DIR motor 2 : D8
@@ -623,27 +598,38 @@ void Rotation(float PWM, float angle, bool direction)
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, direction); // output for DIR motor 1 : D7
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, direction); // output for DIR motor 2 : D8
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, direction); // output for DIR motor 3 : PB2
-	dist = ROBOT_RADIUS*angle*M_PI/180; // dist = distance parcourue par une roue
+	dist1 = ROBOT_RADIUS*angle*M_PI/180; // dist = distance parcourue par une roue
+	dist2 = dist1;
+	dist3 = dist1;
 
 	__HAL_TIM_SET_COUNTER(&htim4, 0);
 	__HAL_TIM_SET_COUNTER(&htim8, 0);
 	__HAL_TIM_SET_COUNTER(&htim2, 0);
-	do
-	{
-		update_encoder(&encoder_value1, &htim4);
-		update_encoder(&encoder_value2, &htim8);
-		update_encoder(&encoder_value3, &htim2);
-		int position1 = encoder_value1.position;
-		//int velocity1 = encoder_value1.velocity;
-		int position2 = encoder_value2.position;
-		//int velocity2 = encoder_value2.velocity;
-		int position3 = encoder_value3.position;
-		//int velocity3 = encoder_value3.velocity;
 
-		x1 = TIRE_RADIUS*2*M_PI*position1/PPR/2;
-		x2 = TIRE_RADIUS*2*M_PI*position2/PPR/2;
-		x3 = TIRE_RADIUS*2*M_PI*position3/PPR/2;
-	}while(fabs(x1) < fabs(dist) || fabs(x2) < fabs(dist) || fabs(x3) < fabs(dist));
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)//fonction intervient à chaque fois qu'on a un interrupt timer
+{//C'est ça qu'il faut modifier et on sera bon pour micro
+	HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+	int x1 = 0, x2 = 0, x3 = 0;
+	encoder_instance encoder_value1, encoder_value2, encoder_value3;
+
+	update_encoder(&encoder_value1, &htim4);
+	update_encoder(&encoder_value2, &htim8);
+	update_encoder(&encoder_value3, &htim2);
+	int position1 = encoder_value1.position;
+	//int velocity1 = encoder_value1.velocity;
+	int position2 = encoder_value2.position;
+	//int velocity2 = encoder_value2.velocity;
+	int position3 = encoder_value3.position;
+	//int velocity3 = encoder_value3.velocity;
+
+	x1 = TIRE_RADIUS*2*M_PI*position1/PPR/2;
+	x2 = TIRE_RADIUS*2*M_PI*position2/PPR/2;
+	x3 = TIRE_RADIUS*2*M_PI*position3/PPR/2;
+	if(fabs(x1) > fabs(dist1) || fabs(x2) > fabs(dist2) || fabs(x3) > fabs(dist3)) //pas sûr de la condition
+		StopRobot();
+	return;
 }
 
 void StopRobot()
@@ -652,17 +638,6 @@ void StopRobot()
 	TIM3->CCR1 = 0;
 	TIM3->CCR4 = 0;
 	first_time = 0; //Pour pouvoir réinitialiser toutes les données des encodeurs
-}
-
-
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)//fonction intervient à chaque fois qu'on a un interrupt timer
-{//C'est ça qu'il faut modifier et on sera bon pour micro
-	encoder_instance enc_instance_mot;
-  //timer_counter = __HAL_TIM_GET_COUNTER(&htim4);
-  // measure velocity, position
-  update_encoder(&enc_instance_mot, &htim4);
-  int encoder_position = enc_instance_mot.position;
-  //int encoder_velocity = enc_instance_mot.velocity;
 }
 
 void update_encoder(encoder_instance *encoder_value, TIM_HandleTypeDef *htim)
