@@ -330,7 +330,7 @@ static void MX_TIM4_Init(void)
   htim4.Init.Period = 65535;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
-  sConfig.EncoderMode = TIM_ENCODERMODE_TI1;
+  sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
   sConfig.IC1Polarity = TIM_ICPOLARITY_FALLING;
   sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
@@ -425,7 +425,7 @@ static void MX_TIM8_Init(void)
   htim8.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim8.Init.RepetitionCounter = 0;
   htim8.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  sConfig.EncoderMode = TIM_ENCODERMODE_TI1;
+  sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
   sConfig.IC1Polarity = TIM_ICPOLARITY_FALLING;
   sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
@@ -602,6 +602,7 @@ void Rotation(float PWM, float angle, bool direction)
 
 }
 
+<<<<<<< HEAD
 void MoveAndRotate (float PWM_Move, float distance_move, float angle_move, float angle_rotation, bool direction_rotation)
 {
 	float PWM_MOTEUR[3];
@@ -776,6 +777,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)//fonction intervient
 	return;
 }
 
+=======
+>>>>>>> branch 'master' of https://github.com/Benjam181/eurobot
 void StopRobot()
 {
 	TIM3->CCR2 = 0;
@@ -844,6 +847,116 @@ void update_encoder(encoder_instance *encoder_value, TIM_HandleTypeDef *htim)
 
 }
 
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)//fonction intervient à chaque fois qu'on a un interrupt timer
+{//C'est ça qu'il faut modifier et on sera bon pour micro
+	HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+	int x1 = 0, x2 = 0, x3 = 0;
+	encoder_instance encoder_value1, encoder_value2, encoder_value3;
+
+	update_encoder(&encoder_value1, &htim4);
+	update_encoder(&encoder_value2, &htim8);
+	update_encoder(&encoder_value3, &htim2);
+
+	int position1 = encoder_value1.position;
+	//int velocity1 = encoder_value1.velocity;
+	int position2 = encoder_value2.position;
+	//int velocity2 = encoder_value2.velocity;
+	int position3 = encoder_value3.position;
+	//int velocity3 = encoder_value3.velocity;
+
+	x1 = TIRE_RADIUS*2*M_PI*position1/PPR;
+	x2 = TIRE_RADIUS*2*M_PI*position2/PPR;
+	x3 = TIRE_RADIUS*2*M_PI*position3/PPR;
+
+	if((fabs(x1) >= fabs(dist1) && fabs(x2) >= fabs(dist2) && fabs(x3) >= fabs(dist3)) || positionExecution==0) //pas sûr de la condition
+	{
+		positionExecution += 1;
+		first_time = 0;
+		switch(positionExecution)
+		{
+
+		case 1:
+			MoveStraight(0.3, 300, 0);
+			//HAL_Delay(1000);
+			 	 break;
+
+		case 2:
+			MoveStraight(0.3, 300, 90);
+			//HAL_Delay(1000);
+				 break;
+
+		case 3:
+			MoveStraight(0.3, 300, 180);
+			//HAL_Delay(1000);
+				 break;
+
+		case 4:
+			MoveStraight(0.3, 300, 270);
+			//HAL_Delay(1000);
+				 break;
+
+		case 5:
+			Rotation (0.3, 50,0);
+				break;
+
+		case 6:
+			Rotation (1,50,1);
+				break;
+
+		case 7:
+			MoveStraight(1, 300, 90);
+			//HAL_Delay(1000);
+				break;
+
+		case 8:
+			MoveStraight(1, 300, 0);
+			//HAL_Delay(1000);
+				 break;
+
+		case 9:
+			MoveStraight(1, 300, 270);
+			//HAL_Delay(1000);
+				 break;
+
+		case 10:
+			MoveStraight(1, 300, 180);
+			//HAL_Delay(1000);
+				 break;
+
+		case 11:
+			MoveStraight (1,182,135);
+
+				break;
+
+		case 12:
+			MoveStraight(1, 300, 45);
+			//HAL_Delay(1000);
+			 	 break;
+
+		case 13:
+			MoveStraight(1, 300, 135);
+			//HAL_Delay(1000);
+				 break;
+
+		case 14:
+			MoveStraight(1, 300, 225);
+			//HAL_Delay(1000);
+				 break;
+
+		case 15:
+			MoveStraight(1, 300, 315);
+			//HAL_Delay(1000);
+				 break;
+
+		case 16:
+			StopRobot();
+			//HAL_Delay(1000);
+				 break;
+
+		}
+	}
+	return;
+}
 /* USER CODE END 4 */
 
 /**
