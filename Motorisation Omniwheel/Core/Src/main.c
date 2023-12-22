@@ -36,8 +36,8 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define M_PI  3.14159265358979323846
-#define VMAX_MOTEUR 251
-#define VMAX_USER 200
+#define VMAX_MOTEUR 251 //tr/min
+#define VMAX_USER 200 //tr/min
 #define PWM_USER_MAX 1
 #define TIM3_COUNTER_PERIOD 999
 #define PPR 5760 // Pulse per rotation for motor encoder
@@ -78,10 +78,13 @@ static void MX_TIM5_Init(void);
 /* USER CODE BEGIN PFP */
 void MoveStraight(float PWM, float distance, float angle);
 void Rotation(float PWM, float angle, bool direction);
+void MoveAndRotate (float PWM_Move, float distance_move, float angle_move, float angle_rotation, bool direction_rotation);
 void StopRobot();
 void update_encoder(encoder_instance *encoder_value, TIM_HandleTypeDef *htim);
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim);
 void ResetEncoder();
+float TempsDeplacement(float PWM_Move,float distance_move);
+float VRotationComposedMove(float PWM_Move,float distance_move, float angle_rotation, bool direction_rotation);
 
 
 /* USER CODE END PFP */
@@ -599,6 +602,66 @@ void Rotation(float PWM, float angle, bool direction)
 
 }
 
+void MoveAndRotate (float PWM_Move, float distance_move, float angle_move, float angle_rotation, bool direction_rotation)
+{
+	float PWM_MOTEUR[3];
+	int i;
+	int dir[3];
+	float PWMrotation;
+
+
+	PWMrotation = VRotationComposedMove(PWM_Move,distance_move,angle_rotation,direction_rotation);
+
+	PWM_MOTEUR[0] = PWM_Move*sin((angle_move-60)*M_PI/180)+PWMrotation;
+	PWM_MOTEUR[1] = PWM_Move*sin((angle_move-180)*M_PI/180)+PWMrotation;
+	PWM_MOTEUR[2] = PWM_Move*sin((angle_move-300)*M_PI/180)+PWMrotation;
+
+	for(i=0;i<3;i++)
+	{
+		if (PWM_MOTEUR[i] > 0)
+		{
+			dir[i] = 1;
+		}
+		else
+		{
+			dir[i] = 0;
+			PWM_MOTEUR[i] = - PWM_MOTEUR[i];
+
+		}
+	}
+
+	TIM3->CCR2 = PWM_MOTEUR[0]*PWM_USER_MAX*(TIM3_COUNTER_PERIOD + 1); // output for DIR motor 1 : D7
+	TIM3->CCR1 = PWM_MOTEUR[1]*PWM_USER_MAX*(TIM3_COUNTER_PERIOD + 1); // output for DIR motor 2 : D8
+	TIM3->CCR4 = PWM_MOTEUR[2]*PWM_USER_MAX*(TIM3_COUNTER_PERIOD + 1); // output for DIR motor 3 : D6
+
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, dir[0]); // output for DIR motor 1 : D7
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, dir[1]); // output for DIR motor 2 : D8
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10, dir[2]); // output for DIR motor 3 :D6
+
+	dist1 = -distance_move*sin((angle_move-60)*M_PI/180) + ROBOT_RADIUS*angle_rotation*M_PI/180;
+	dist2 = -distance_move*sin((angle_move-180)*M_PI/180) + ROBOT_RADIUS*angle_rotation*M_PI/180;
+	dist3 = -distance_move*sin((angle_move-300)*M_PI/180) + ROBOT_RADIUS*angle_rotation*M_PI/180;
+}
+
+float TempsDeplacement(float PWM_Move,float distance_move)
+{
+	float temps;
+	temps = distance_move/(PWM_Move*VMAX_MOTEUR*TIRE_RADIUS*2*M_PI/60);
+	return temps;
+}
+
+float VRotationComposedMove(float PWM_Move,float distance_move, float angle_rotation, bool direction_rotation)
+{
+	float PWMrotation, Vrotation, temps, distance_rotation;
+	temps = TempsDeplacement(PWM_Move,distance_move);
+	distance_rotation = ROBOT_RADIUS*angle_rotation*M_PI/180;
+	Vrotation = distance_rotation / temps *60 / TIRE_RADIUS;
+	PWMrotation = Vrotation/VMAX_USER;
+	if(direction_rotation==0)
+		PWMrotation = -PWMrotation;
+	return PWMrotation;
+}
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)//fonction intervient à chaque fois qu'on a un interrupt timer
 {//C'est ça qu'il faut modifier et on sera bon pour micro
 	HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
@@ -630,7 +693,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)//fonction intervient
 		case 1:
 			//Rotation(1, 30, 0);
 			//Rotation(0.5, 20, 1);
-			MoveStraight(0.3, 100, 0);
+			MoveAndRotate (0.4, 100, 0, 90, 1);
 			//HAL_Delay(1000);
 			 	 break;
 
@@ -658,8 +721,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)//fonction intervient
 				break;
 
 		case 7:
-			//Rotation(1, 30, 0);
-			//Rotation(0.5, 20, 1);
 			MoveStraight(1, 100, 90);
 			//HAL_Delay(1000);
 				break;
